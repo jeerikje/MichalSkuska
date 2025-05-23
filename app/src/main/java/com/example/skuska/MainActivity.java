@@ -15,16 +15,18 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
 import java.io.BufferedReader;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLEncoder;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.HashMap;
 
 public class MainActivity extends AppCompatActivity {
+    HashMap<String, Integer> mapaCien = new HashMap<>();
+    HashMap<String, Integer> mapaTerminov = new HashMap<>();
+    HashMap<String, String> mapaZobrazenehoTextuNaDatum = new HashMap<>();
 
     Spinner spinnerDestinacie, spinnerTerminy;
     EditText menoInput, osobyInput;
@@ -53,6 +55,8 @@ public class MainActivity extends AppCompatActivity {
         btnZobrazReport = findViewById(R.id.btnZobrazReport);
         listView = findViewById(R.id.listView);
 
+        btnZobrazKlientov.setVisibility(View.GONE);
+
         adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, zoznam);
         listView.setAdapter(adapter);
 
@@ -62,6 +66,9 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 String destinacia = parent.getItemAtPosition(position).toString();
+                zoznam.clear();
+                adapter.notifyDataSetChanged();
+                btnZobrazKlientov.setVisibility(View.GONE);
                 new Komunikator().execute(urlTerminy, "2", destinacia);
             }
 
@@ -72,54 +79,101 @@ public class MainActivity extends AppCompatActivity {
         btnObjednaj.setOnClickListener(v -> {
             String meno = menoInput.getText().toString();
             String osoby = osobyInput.getText().toString();
-            String termin = spinnerTerminy.getSelectedItem().toString();
+            String zobrazenyText = spinnerTerminy.getSelectedItem().toString();
+            String datum = mapaZobrazenehoTextuNaDatum.get(zobrazenyText);
 
-            if (meno.isEmpty() || osoby.isEmpty()) {
+            if (meno.isEmpty() || osoby.isEmpty() || datum == null) {
                 Toast.makeText(this, "Vyplň všetky polia", Toast.LENGTH_SHORT).show();
                 return;
             }
 
-            new Komunikator().execute(urlObjednaj, "3", meno, osoby, termin);
+            Integer terminId = mapaTerminov.get(datum);
+            Integer cenaZaOsobu = mapaCien.get(datum);
+
+            if (terminId == null || cenaZaOsobu == null) {
+                Toast.makeText(this, "Chyba: neplatný termín", Toast.LENGTH_LONG).show();
+                return;
+            }
+
+            int osobyInt = Integer.parseInt(osoby);
+            int celkovaCena = osobyInt * cenaZaOsobu;
+
+            new android.app.AlertDialog.Builder(MainActivity.this)
+                    .setTitle("Potvrdiť objednávku")
+                    .setMessage("Celková cena: " + celkovaCena + " €")
+                    .setPositiveButton("Zaplatiť", (dialog, which) -> {
+                        new Komunikator().execute(urlObjednaj, "3", meno, osoby, String.valueOf(terminId));
+                    })
+                    .setNegativeButton("Zrušiť", null)
+                    .show();
         });
 
         btnZobrazKlientov.setOnClickListener(v -> {
-            String termin = spinnerTerminy.getSelectedItem().toString();
-            new Komunikator().execute(urlKlienti, "4", termin);
+            String zobrazenyText = spinnerTerminy.getSelectedItem().toString();
+            String datum = mapaZobrazenehoTextuNaDatum.get(zobrazenyText);
+            Integer terminId = mapaTerminov.get(datum);
+
+            if (terminId == null) {
+                Toast.makeText(this, "Termín neexistuje", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            Log.d("MainActivity", "Posielam termin_id: " + terminId);
+            new Komunikator().execute(urlKlienti, "4", String.valueOf(terminId));
         });
 
         btnZobrazReport.setOnClickListener(v -> {
-            new Komunikator().execute(urlReport, "5", "admin123");
+            // Vytvoríme dialóg s EditText na zadanie hesla
+            EditText input = new EditText(MainActivity.this);
+            input.setHint("Zadaj heslo");
+
+            new android.app.AlertDialog.Builder(MainActivity.this)
+                    .setTitle("Zobraziť report")
+                    .setView(input)
+                    .setPositiveButton("OK", (dialog, which) -> {
+                        String zadaneHeslo = input.getText().toString().trim();
+                        if (!zadaneHeslo.isEmpty()) {
+                            new Komunikator().execute(urlReport, "5", zadaneHeslo);
+                        } else {
+                            Toast.makeText(MainActivity.this, "Zadaj heslo", Toast.LENGTH_SHORT).show();
+                        }
+                    })
+                    .setNegativeButton("Zrušiť", null)
+                    .show();
         });
+
     }
 
     private class Komunikator extends AsyncTask<String, Void, String> {
+        private int aktualnaUloha = 0;
         @Override
         protected String doInBackground(String... params) {
+            aktualnaUloha = Integer.parseInt(params[1]);
+
             String url = params[0];
-            int uloha = Integer.parseInt(params[1]);
             String result = "";
             try {
                 URLConnection conn = new URL(url).openConnection();
                 conn.setReadTimeout(15000);
                 conn.setConnectTimeout(15000);
 
-                if (uloha >= 2) {
+                if (aktualnaUloha >= 2) {
                     conn.setDoOutput(true);
                     String data = "";
 
-                    switch (uloha) {
-                        case 2: // Získať termíny pre destináciu
+                    switch (aktualnaUloha) {
+                        case 2:
                             data = URLEncoder.encode("destinacia", "UTF-8") + "=" + URLEncoder.encode(params[2], "UTF-8");
                             break;
-                        case 3: // Objednávka
+                        case 3:
                             data = URLEncoder.encode("meno", "UTF-8") + "=" + URLEncoder.encode(params[2], "UTF-8") +
                                     "&" + URLEncoder.encode("osoby", "UTF-8") + "=" + URLEncoder.encode(params[3], "UTF-8") +
                                     "&" + URLEncoder.encode("termin", "UTF-8") + "=" + URLEncoder.encode(params[4], "UTF-8");
                             break;
-                        case 4: // Klienti na termíne
+                        case 4:
                             data = URLEncoder.encode("termin", "UTF-8") + "=" + URLEncoder.encode(params[2], "UTF-8");
                             break;
-                        case 5: // Report s heslom
+                        case 5:
                             data = URLEncoder.encode("heslo", "UTF-8") + "=" + URLEncoder.encode(params[2], "UTF-8");
                             break;
                     }
@@ -148,6 +202,9 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         protected void onPostExecute(String result) {
+            Log.d("Komunikator", "onPostExecute - aktualnaUloha: " + aktualnaUloha);
+            Log.d("Komunikator", "onPostExecute - result: '" + (result != null ? result : "NULL") + "'");
+
             if (result == null) {
                 Toast.makeText(MainActivity.this, "Chyba pri komunikácii", Toast.LENGTH_SHORT).show();
                 return;
@@ -157,42 +214,82 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(MainActivity.this, "Úspešné", Toast.LENGTH_SHORT).show();
                 menoInput.setText("");
                 osobyInput.setText("");
+                btnZobrazKlientov.setVisibility(View.VISIBLE);
+
+                // Znovu načítame termíny aby sa aktualizoval počet voľných miest
+                String aktualnaDestinacia = spinnerDestinacie.getSelectedItem().toString();
+                new Komunikator().execute(urlTerminy, "2", aktualnaDestinacia);
+                return;
+            }
+
+
+            if (aktualnaUloha == 4 || aktualnaUloha == 5) {
+                zoznam.clear();
+                if (result.isEmpty()) {
+                    zoznam.add("Žiadne objednávky pre tento termín");
+                } else {
+                    String[] riadky = result.split("\\|");
+                    for (String riadok : riadky) {
+                        if (!riadok.trim().isEmpty()) {
+                            zoznam.add(riadok);
+                        }
+                    }
+                }
+                adapter.notifyDataSetChanged();
                 return;
             }
 
             if (result.contains("|")) {
                 String[] riadky = result.split("\\|");
 
-                if (riadky.length > 0 && Character.isDigit(riadky[0].charAt(0))) {
-                    ArrayAdapter<String> termAdapter = new ArrayAdapter<>(MainActivity.this, android.R.layout.simple_spinner_item, riadky);
+                if (aktualnaUloha == 2) {
+                    mapaCien.clear();
+                    mapaTerminov.clear();
+                    mapaZobrazenehoTextuNaDatum.clear();
+                    ArrayList<String> zobrazitTerminy = new ArrayList<>();
+
+                    for (String riadok : riadky) {
+                        String[] casti = riadok.split(";");
+                        if (casti.length == 5) {
+                            String id = casti[0];
+                            String datum = casti[1];
+                            int cena = Integer.parseInt(casti[2]);
+                            int kapacita = Integer.parseInt(casti[3]);
+                            int obsadene = Integer.parseInt(casti[4]);
+
+                            mapaCien.put(datum, cena);
+                            mapaTerminov.put(datum, Integer.parseInt(id));
+
+                            String zobrazenie = datum + " (voľnych: " + (kapacita - obsadene) + ")";
+                            zobrazitTerminy.add(zobrazenie);
+                            mapaZobrazenehoTextuNaDatum.put(zobrazenie, datum);
+                        }
+                    }
+
+                    ArrayAdapter<String> termAdapter = new ArrayAdapter<>(MainActivity.this, android.R.layout.simple_spinner_item, zobrazitTerminy);
                     termAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
                     spinnerTerminy.setAdapter(termAdapter);
-                } else {
+
+                    btnZobrazKlientov.setVisibility(View.GONE);
+                    zoznam.clear();
+                    adapter.notifyDataSetChanged();
+                    return;
+                }
+
+                if (aktualnaUloha == 1) {
                     ArrayAdapter<String> destAdapter = new ArrayAdapter<>(MainActivity.this, android.R.layout.simple_spinner_item, riadky);
                     destAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
                     spinnerDestinacie.setAdapter(destAdapter);
 
-// Vyber prvú destináciu automaticky po načítaní
                     if (riadky.length > 0) {
                         spinnerDestinacie.postDelayed(() -> spinnerDestinacie.setSelection(0), 200);
                     }
+
+                    btnZobrazKlientov.setVisibility(View.GONE);
+                    zoznam.clear();
+                    adapter.notifyDataSetChanged();
                 }
-                return;
             }
-
-            zoznam.clear();
-
-            if (!result.isEmpty()) {
-                if (result.contains("|")) {
-                    zoznam.addAll(Arrays.asList(result.split("\\\\|")));
-                } else {
-                    zoznam.add(result);
-                }
-            } else {
-                zoznam.add("Žiadne výsledky");
-            }
-
-            adapter.notifyDataSetChanged();
         }
     }
 }
