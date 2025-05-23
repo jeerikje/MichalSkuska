@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:orientation="vertical"
+        android:padding="16dp"
+        android:layout_marginTop="64dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <Spinner
+            android:id="@+id/spinnerDestinacie"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <Spinner
+            android:id="@+id/spinnerTerminy"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp" />
+
+        <EditText
+            android:id="@+id/menoInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Meno hlavnej osoby"
+            android:layout_marginTop="8dp" />
+
+        <EditText
+            android:id="@+id/osobyInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Počet osôb"
+            android:inputType="number"
+            android:layout_marginTop="8dp" />
+
+        <Button
+            android:id="@+id/btnObjednaj"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Objednať"
+            android:layout_marginTop="8dp" />
+
+        <Button
+            android:id="@+id/btnZobrazKlientov"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Zobraz klientov na termíne"
+            android:layout_marginTop="8dp" />
+
+        <Button
+            android:id="@+id/btnZobrazReport"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Zobraz report (manažér)"
+            android:layout_marginTop="8dp" />
+
+        <ListView
+            android:id="@+id/listView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:dividerHeight="1dp" />
+    </LinearLayout>
+</ScrollView>
